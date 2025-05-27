@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { User, Lock, Upload } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { User, Lock } from 'lucide-react';
 import { Dialog } from '@headlessui/react';
 import { useAuth } from '../../context/AuthContext';
 import { toast, ToastContainer } from 'react-toastify';
+import { useDropzone } from 'react-dropzone';
 import 'react-toastify/dist/ReactToastify.css';
 import * as apiService from '../../services/api';
 import BackButton from '../../components/BackButton';
@@ -19,8 +20,44 @@ const AdminProfile = () => {
     newPassword: '',
     confirmPassword: '',
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    try {
+      setUploadProgress(0);
+      const response = await apiService.uploadProfilePicture(file);
+      
+      if (response.success && response.data) {
+        const updatedUser = {
+          ...user,
+          profilePicture: response.data.url
+        };
+        
+        const updateResponse = await apiService.updateUserProfile(updatedUser);
+        
+        if (updateResponse.success) {
+          login(updatedUser, localStorage.getItem('authToken') || '');
+          toast.success('Profile picture updated successfully');
+        }
+      }
+    } catch (err) {
+      toast.error('Failed to upload profile picture');
+    } finally {
+      setUploadProgress(0);
+    }
+  }, [user, login]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png']
+    },
+    maxSize: 5242880, // 5MB
+    multiple: false
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -38,35 +75,10 @@ const AdminProfile = () => {
     }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let profilePictureUrl = user?.profilePicture || null;
-      
-      if (imageFile) {
-        const uploadResponse = await apiService.uploadProfilePicture(imageFile);
-        if (uploadResponse.success && uploadResponse.data) {
-          profilePictureUrl = uploadResponse.data.url;
-        }
-      }
-      
-      const response = await apiService.updateUserProfile({
-        ...formData,
-        profilePicture: profilePictureUrl,
-      });
+      const response = await apiService.updateUserProfile(formData);
       
       if (response.success && response.data) {
         toast.success('Profile updated successfully');
@@ -134,30 +146,37 @@ const AdminProfile = () => {
 
           <div className="flex flex-col items-center mb-8">
             <div className="relative">
-              <div className="w-32 h-32 rounded-full bg-blue-600 flex items-center justify-center text-white text-5xl font-semibold overflow-hidden">
-                {(imagePreview || user?.profilePicture) ? (
-                  <img 
-                    src={imagePreview || user?.profilePicture || ''} 
-                    alt={user?.name} 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  user?.name?.charAt(0) || 'A'
-                )}
-                
-                {isEditing && (
-                  <label className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center cursor-pointer transition-opacity hover:bg-opacity-60">
-                    <Upload size={24} className="text-white" />
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*"
-                      onChange={handleFileChange}
+              <div {...getRootProps()} className="cursor-pointer">
+                <input {...getInputProps()} />
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative group">
+                  {user?.profilePicture ? (
+                    <img 
+                      src={user.profilePicture} 
+                      alt={user.name} 
+                      className="w-full h-full object-cover"
                     />
-                  </label>
-                )}
+                  ) : (
+                    <span className="text-4xl text-gray-400">
+                      {user?.name?.charAt(0) || 'A'}
+                    </span>
+                  )}
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                </div>
               </div>
+              {uploadProgress > 0 && (
+                <div className="absolute bottom-0 left-0 w-full bg-gray-200 h-2 rounded-full">
+                  <div 
+                    className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
+            <p className="mt-2 text-sm text-gray-500">
+              Click or drag to upload profile picture
+            </p>
           </div>
 
           {isEditing ? (
@@ -207,8 +226,6 @@ const AdminProfile = () => {
                   type="button"
                   onClick={() => {
                     setIsEditing(false);
-                    setImageFile(null);
-                    setImagePreview(null);
                     setFormData({ name: user?.name || '' });
                   }}
                   className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
