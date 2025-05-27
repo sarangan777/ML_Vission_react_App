@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { User, DashboardStats, ActivityItem, LeaveRequest, ApiResponse } from '../types';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // Create axios instance
 const api = axios.create({
@@ -209,10 +210,26 @@ export const updateUserProfile = async (profileData: Partial<User>): Promise<Api
 };
 
 export const uploadProfilePicture = async (file: File): Promise<ApiResponse<{ url: string }>> => {
-  return {
-    success: true,
-    data: { url: URL.createObjectURL(file) }
-  };
+  try {
+    const storage = getStorage();
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    const storageRef = ref(storage, `profile-pictures/${userId}`);
+    
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    
+    return {
+      success: true,
+      data: { url: downloadURL }
+    };
+  } catch (error) {
+    console.error('Error uploading profile picture:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Failed to upload profile picture'
+    };
+  }
 };
 
 export const changePassword = async (currentPassword: string, newPassword: string): Promise<ApiResponse<void>> => {

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../context/AuthContext';
 import * as apiService from '../services/api';
 import { User } from '../types';
-import { Camera, Save, X, Lock } from 'lucide-react';
+import { Camera, Save, X, Lock, Upload } from 'lucide-react';
 import { Dialog } from '@headlessui/react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -23,6 +24,47 @@ const Profile: React.FC = () => {
   const [profileForm, setProfileForm] = useState({
     name: '',
     department: '',
+  });
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    try {
+      setUploadProgress(0);
+      const response = await apiService.uploadProfilePicture(file);
+      
+      if (response.success && response.data) {
+        const updatedUser = {
+          ...user,
+          profilePicture: response.data.url
+        };
+        
+        const updateResponse = await apiService.updateUserProfile(updatedUser);
+        
+        if (updateResponse.success) {
+          setUser(updatedUser);
+          if (authUser) {
+            login(updatedUser, localStorage.getItem('authToken') || '');
+          }
+          toast.success('Profile picture updated successfully');
+        }
+      }
+    } catch (err) {
+      toast.error('Failed to upload profile picture');
+    } finally {
+      setUploadProgress(0);
+    }
+  }, [user, authUser, login]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png']
+    },
+    maxSize: 5242880, // 5MB
+    multiple: false
   });
 
   useEffect(() => {
@@ -144,6 +186,41 @@ const Profile: React.FC = () => {
                 Edit Profile
               </button>
             )}
+          </div>
+
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative">
+              <div {...getRootProps()} className="cursor-pointer">
+                <input {...getInputProps()} />
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative group">
+                  {user?.profilePicture ? (
+                    <img 
+                      src={user.profilePicture} 
+                      alt={user.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-4xl text-gray-400">
+                      {user?.name?.charAt(0) || 'U'}
+                    </span>
+                  )}
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Upload className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+              </div>
+              {uploadProgress > 0 && (
+                <div className="absolute bottom-0 left-0 w-full bg-gray-200 h-2 rounded-full">
+                  <div 
+                    className="bg-[#7494ec] h-full rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-sm text-gray-500">
+              Click or drag to upload profile picture
+            </p>
           </div>
 
           {isEditing ? (
