@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit2, Trash2, Search } from 'lucide-react';
+import { Users, Edit2, Trash2, Search, Upload } from 'lucide-react';
+import { Dialog } from '@headlessui/react';
 import BackButton from '../../components/BackButton';
 
 interface User {
@@ -8,7 +9,9 @@ interface User {
   email: string;
   department: string;
   year: string;
-  role: string;
+  registrationNumber: string;
+  birthDate: string;
+  profilePicture?: string;
 }
 
 const ManageUsers = () => {
@@ -17,9 +20,19 @@ const ManageUsers = () => {
   const [filters, setFilters] = useState({
     department: '',
     year: '',
-    role: '',
     search: ''
   });
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    registrationNumber: '',
+    birthDate: '',
+    password: '',
+    confirmPassword: '',
+    profilePicture: null as File | null
+  });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Mock data
   const mockUsers: User[] = [
@@ -29,7 +42,9 @@ const ManageUsers = () => {
       email: 'john.doe@example.com',
       department: 'HNDIT',
       year: '1st Year',
-      role: 'User'
+      registrationNumber: 'IT2023001',
+      birthDate: '2000-01-01',
+      profilePicture: 'https://example.com/profile1.jpg'
     },
     {
       id: '2',
@@ -37,9 +52,10 @@ const ManageUsers = () => {
       email: 'jane.smith@example.com',
       department: 'HNDA',
       year: '2nd Year',
-      role: 'Admin'
-    },
-    // Add more mock users as needed
+      registrationNumber: 'DA2022002',
+      birthDate: '1999-05-15',
+      profilePicture: 'https://example.com/profile2.jpg'
+    }
   ];
 
   useEffect(() => {
@@ -55,9 +71,6 @@ const ManageUsers = () => {
     }
     if (filters.year) {
       result = result.filter(user => user.year === filters.year);
-    }
-    if (filters.role) {
-      result = result.filter(user => user.role === filters.role);
     }
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
@@ -83,6 +96,56 @@ const ManageUsers = () => {
     setUsers(prev => prev.filter(user => user.id !== id));
   };
 
+  const handleEdit = (user: User) => {
+    setSelectedUser(user);
+    setEditForm({
+      name: user.name,
+      registrationNumber: user.registrationNumber,
+      birthDate: user.birthDate,
+      password: '',
+      confirmPassword: '',
+      profilePicture: null
+    });
+    setPreviewUrl(user.profilePicture || null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditForm(prev => ({ ...prev, profilePicture: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmitEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editForm.password !== editForm.confirmPassword) {
+      alert("Passwords don't match!");
+      return;
+    }
+
+    // In a real application, this would be an API call
+    setUsers(prev => prev.map(user => 
+      user.id === selectedUser?.id
+        ? {
+            ...user,
+            name: editForm.name,
+            registrationNumber: editForm.registrationNumber,
+            birthDate: editForm.birthDate,
+            profilePicture: previewUrl || user.profilePicture
+          }
+        : user
+    ));
+
+    setIsEditModalOpen(false);
+  };
+
   return (
     <div className="p-6">
       <div className="mb-4">
@@ -93,16 +156,16 @@ const ManageUsers = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <Users className="w-6 h-6 text-blue-600 mr-2" />
-              <h2 className="text-xl font-semibold text-gray-800">Manage Users</h2>
+              <h2 className="text-xl font-semibold text-gray-800">Manage Students</h2>
             </div>
           </div>
 
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <input
                 type="text"
                 name="search"
-                placeholder="Search users..."
+                placeholder="Search students..."
                 value={filters.search}
                 onChange={handleFilterChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
@@ -134,17 +197,6 @@ const ManageUsers = () => {
               <option value="2nd Year">2nd Year</option>
               <option value="3rd Year">3rd Year</option>
             </select>
-
-            <select
-              name="role"
-              value={filters.role}
-              onChange={handleFilterChange}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Roles</option>
-              <option value="User">User</option>
-              <option value="Admin">Admin</option>
-            </select>
           </div>
 
           <div className="overflow-x-auto">
@@ -164,7 +216,7 @@ const ManageUsers = () => {
                     Year
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
+                    Registration No.
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -175,7 +227,18 @@ const ManageUsers = () => {
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0">
+                          <img
+                            className="h-10 w-10 rounded-full object-cover"
+                            src={user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
+                            alt={user.name}
+                          />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{user.email}</div>
@@ -187,15 +250,14 @@ const ManageUsers = () => {
                       <div className="text-sm text-gray-500">{user.year}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        user.role === 'Admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                      }`}>
-                        {user.role}
-                      </span>
+                      <div className="text-sm text-gray-500">{user.registrationNumber}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex space-x-2">
-                        <button className="text-blue-600 hover:text-blue-900">
+                        <button 
+                          onClick={() => handleEdit(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
                           <Edit2 className="w-5 h-5" />
                         </button>
                         <button 
@@ -213,6 +275,130 @@ const ManageUsers = () => {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        className="fixed inset-0 z-10 overflow-y-auto"
+      >
+        <div className="flex items-center justify-center min-h-screen">
+          <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
+
+          <div className="relative bg-white rounded-lg max-w-md w-full mx-4 p-6">
+            <Dialog.Title className="text-lg font-medium mb-4">
+              Edit Student Information
+            </Dialog.Title>
+
+            <form onSubmit={handleSubmitEdit} className="space-y-4">
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full border-4 border-gray-200 overflow-hidden">
+                    {previewUrl ? (
+                      <img 
+                        src={previewUrl} 
+                        alt="Profile preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                        <Upload className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700">
+                    <Upload size={16} />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Registration Number
+                </label>
+                <input
+                  type="text"
+                  value={editForm.registrationNumber}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, registrationNumber: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Birth Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.birthDate}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, birthDate: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Password (leave blank to keep current)
+                </label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={editForm.confirmPassword}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 };
