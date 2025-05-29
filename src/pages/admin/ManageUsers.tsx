@@ -135,6 +135,14 @@ const ManageUsers = () => {
   const handleRemoveProfilePicture = () => {
     setPreviewUrl(null);
     setEditForm(prev => ({ ...prev, profilePicture: null }));
+    // In a real application, make an API call to remove the profile picture
+    if (selectedUser) {
+      setUsers(prev => prev.map(user => 
+        user.id === selectedUser.id 
+          ? { ...user, profilePicture: null }
+          : user
+      ));
+    }
   };
 
   const handleSubmitEdit = (e: React.FormEvent) => {

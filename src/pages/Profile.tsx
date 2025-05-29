@@ -109,6 +109,27 @@ const Profile: React.FC = () => {
     }));
   };
 
+  const handleRemoveProfilePicture = async () => {
+    try {
+      const updatedUser = {
+        ...user,
+        profilePicture: null
+      };
+      
+      const response = await apiService.updateUserProfile(updatedUser);
+      
+      if (response.success) {
+        setUser(updatedUser);
+        if (authUser) {
+          login(updatedUser, localStorage.getItem('authToken') || '');
+        }
+        toast.success('Profile picture removed successfully');
+      }
+    } catch (err) {
+      toast.error('Failed to remove profile picture');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -194,11 +215,22 @@ const Profile: React.FC = () => {
                 <input {...getInputProps()} />
                 <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative group">
                   {user?.profilePicture ? (
-                    <img 
-                      src={user.profilePicture} 
-                      alt={user.name} 
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <img 
+                        src={user.profilePicture} 
+                        alt={user.name} 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveProfilePicture();
+                        }}
+                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
                   ) : (
                     <span className="text-4xl text-gray-400">
                       {user?.name?.charAt(0) || 'U'}
