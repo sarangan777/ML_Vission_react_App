@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit2, Trash2, Search, Upload } from 'lucide-react';
+import { Users, Edit2, Trash2, Search, Upload, X } from 'lucide-react';
 import { Dialog } from '@headlessui/react';
 import BackButton from '../../components/BackButton';
 
@@ -23,6 +23,7 @@ const ManageUsers = () => {
     search: ''
   });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -91,9 +92,18 @@ const ManageUsers = () => {
     }));
   };
 
-  const handleDelete = (id: string) => {
-    // In a real application, this would be an API call
-    setUsers(prev => prev.filter(user => user.id !== id));
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (selectedUser) {
+      // In a real application, this would be an API call
+      setUsers(prev => prev.filter(user => user.id !== selectedUser.id));
+      setIsDeleteModalOpen(false);
+      setSelectedUser(null);
+    }
   };
 
   const handleEdit = (user: User) => {
@@ -122,6 +132,11 @@ const ManageUsers = () => {
     }
   };
 
+  const handleRemoveProfilePicture = () => {
+    setPreviewUrl(null);
+    setEditForm(prev => ({ ...prev, profilePicture: null }));
+  };
+
   const handleSubmitEdit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -138,7 +153,7 @@ const ManageUsers = () => {
             name: editForm.name,
             registrationNumber: editForm.registrationNumber,
             birthDate: editForm.birthDate,
-            profilePicture: previewUrl || user.profilePicture
+            profilePicture: previewUrl
           }
         : user
     ));
@@ -261,7 +276,7 @@ const ManageUsers = () => {
                           <Edit2 className="w-5 h-5" />
                         </button>
                         <button 
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => handleDeleteClick(user)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -276,6 +291,7 @@ const ManageUsers = () => {
         </div>
       </div>
 
+      {/* Edit Modal */}
       <Dialog
         open={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -294,11 +310,20 @@ const ManageUsers = () => {
                 <div className="relative">
                   <div className="w-32 h-32 rounded-full border-4 border-gray-200 overflow-hidden">
                     {previewUrl ? (
-                      <img 
-                        src={previewUrl} 
-                        alt="Profile preview" 
-                        className="w-full h-full object-cover"
-                      />
+                      <>
+                        <img 
+                          src={previewUrl} 
+                          alt="Profile preview" 
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveProfilePicture}
+                          className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
                     ) : (
                       <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                         <Upload className="w-8 h-8 text-gray-400" />
@@ -396,6 +421,44 @@ const ManageUsers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        className="fixed inset-0 z-10 overflow-y-auto"
+      >
+        <div className="flex items-center justify-center min-h-screen">
+          <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
+
+          <div className="relative bg-white rounded-lg max-w-md w-full mx-4 p-6">
+            <Dialog.Title className="text-lg font-medium text-gray-900 mb-4">
+              Confirm Delete
+            </Dialog.Title>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Are you sure you want to delete {selectedUser?.name}? This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       </Dialog>
