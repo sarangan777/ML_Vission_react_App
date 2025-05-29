@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { User, Lock } from 'lucide-react';
+import { User, Lock, Upload, X } from 'lucide-react';
 import { Dialog } from '@headlessui/react';
 import { useAuth } from '../../context/AuthContext';
 import { toast, ToastContainer } from 'react-toastify';
@@ -21,6 +21,7 @@ const AdminProfile = () => {
     confirmPassword: '',
   });
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(user?.profilePicture || null);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -73,6 +74,25 @@ const AdminProfile = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    try {
+      const updatedUser = {
+        ...user,
+        profilePicture: null
+      };
+      
+      const response = await apiService.updateUserProfile(updatedUser);
+      
+      if (response.success) {
+        setPreviewUrl(null);
+        login(updatedUser, localStorage.getItem('authToken') || '');
+        toast.success('Profile picture removed successfully');
+      }
+    } catch (err) {
+      toast.error('Failed to remove profile picture');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,18 +170,29 @@ const AdminProfile = () => {
                 <input {...getInputProps()} />
                 <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative group">
                   {user?.profilePicture ? (
-                    <img 
-                      src={user.profilePicture} 
-                      alt={user.name} 
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <img 
+                        src={user.profilePicture} 
+                        alt={user.name} 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveProfilePicture();
+                        }}
+                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
                   ) : (
                     <span className="text-4xl text-gray-400">
                       {user?.name?.charAt(0) || 'A'}
                     </span>
                   )}
                   <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <User className="w-8 h-8 text-white" />
+                    <Upload className="w-8 h-8 text-white" />
                   </div>
                 </div>
               </div>
