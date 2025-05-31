@@ -4,6 +4,7 @@ import { unparse } from 'papaparse';
 import { format } from 'date-fns';
 import BackButton from '../../components/BackButton';
 import ManualAttendanceModal from '../../components/ManualAttendanceModal';
+import AttendanceReviewList from '../../components/AttendanceReviewList';
 import { toast } from 'react-toastify';
 
 interface AttendanceRecord {
@@ -15,6 +16,19 @@ interface AttendanceRecord {
   department?: string;
   registrationNumber?: string;
   attendancePercentage: number;
+}
+
+interface ReviewRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  registrationNumber: string;
+  date: string;
+  currentStatus: string;
+  reason: string;
+  comments: string;
+  requestDate: string;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 const AttendanceReview = () => {
@@ -58,6 +72,34 @@ const AttendanceReview = () => {
     }
   ]);
 
+  // Mock review requests
+  const [reviewRequests] = useState<ReviewRequest[]>([
+    {
+      id: '1',
+      studentId: 'STD002',
+      studentName: 'Jane Smith',
+      registrationNumber: 'HNDIT/FT/2023/001',
+      date: '2024-03-13',
+      currentStatus: 'Absent',
+      reason: 'I was present but not detected',
+      comments: 'I attended the class but the system did not detect my presence',
+      requestDate: '2024-03-13T10:30:00Z',
+      status: 'pending'
+    },
+    {
+      id: '2',
+      studentId: 'STD004',
+      studentName: 'Mark Lee',
+      registrationNumber: 'HNDIT/FT/2023/004',
+      date: '2024-03-12',
+      currentStatus: 'Late',
+      reason: 'Medical issue',
+      comments: 'Had a doctor\'s appointment in the morning',
+      requestDate: '2024-03-12T14:00:00Z',
+      status: 'pending'
+    }
+  ]);
+
   const handleExportCSV = () => {
     const csvData = attendanceRecords.map(record => ({
       'Student Name': record.employee,
@@ -83,7 +125,6 @@ const AttendanceReview = () => {
   };
 
   const handleManualAttendanceSubmit = (attendanceData: any) => {
-    // Process the attendance data and add to records
     const newRecords = attendanceData.students.map((student: any, index: number) => ({
       id: Math.max(...attendanceRecords.map(r => r.id)) + index + 1,
       employee: student.name,
@@ -97,6 +138,16 @@ const AttendanceReview = () => {
 
     setAttendanceRecords(prev => [...prev, ...newRecords]);
     toast.success(`Attendance marked for ${attendanceData.students.length} students`);
+  };
+
+  const handleUpdateReviewStatus = async (requestId: string, newStatus: 'approved' | 'rejected', remarks?: string) => {
+    // Mock API call - In a real application, this would be an actual API request
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('Review status updated:', { requestId, newStatus, remarks });
+        resolve(true);
+      }, 500);
+    });
   };
 
   const getAttendanceColor = (percentage: number) => {
@@ -120,6 +171,16 @@ const AttendanceReview = () => {
       <div className="mb-4">
         <BackButton />
       </div>
+
+      {/* Review Requests Section */}
+      <div className="mb-8">
+        <AttendanceReviewList
+          requests={reviewRequests}
+          onUpdateStatus={handleUpdateReviewStatus}
+        />
+      </div>
+
+      {/* Attendance Records Section */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
