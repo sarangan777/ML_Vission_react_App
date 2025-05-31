@@ -12,6 +12,13 @@ interface Student {
   year: '1st Year' | '2nd Year' | '3rd Year';
 }
 
+interface StudentAttendance {
+  id: string;
+  status: 'Present' | 'Absent' | 'Late' | 'Excused';
+  remarks?: string;
+  timeSlot?: 'Morning' | 'Evening';
+}
+
 interface ManualAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,7 +34,8 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   const [type, setType] = useState('');
   const [year, setYear] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [studentAttendance, setStudentAttendance] = useState<Record<string, StudentAttendance>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
 
@@ -49,11 +57,9 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
       type: 'Part Time',
       year: '2nd Year'
     },
-    // Add more mock students...
   ];
 
   useEffect(() => {
-    // Simulate API call
     setIsLoading(true);
     setTimeout(() => {
       setStudents(mockStudents);
@@ -72,34 +78,35 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
     return matchesDepartment && matchesType && matchesYear && matchesSearch;
   });
 
-  const handleSelectAll = () => {
-    const filteredIds = filteredStudents.map(student => student.id);
-    setSelectedStudents(filteredIds);
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedStudents([]);
-  };
-
-  const toggleStudent = (studentId: string) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
+  const handleAttendanceChange = (studentId: string, field: keyof StudentAttendance, value: any) => {
+    setStudentAttendance(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        id: studentId,
+        [field]: value
+      }
+    }));
   };
 
   const handleSubmit = () => {
+    if (!selectedDate) {
+      alert('Please select a date');
+      return;
+    }
+
     const attendanceData = {
-      date: format(new Date(), 'yyyy-MM-dd'),
-      students: selectedStudents.map(id => {
-        const student = students.find(s => s.id === id);
+      date: selectedDate,
+      students: Object.values(studentAttendance).map(attendance => {
+        const student = students.find(s => s.id === attendance.id);
         return {
-          id,
+          id: attendance.id,
           name: student?.name,
           registrationNumber: student?.registrationNumber,
           department: student?.department,
-          status: 'Present'
+          status: attendance.status,
+          remarks: attendance.remarks,
+          timeSlot: attendance.timeSlot
         };
       })
     };
@@ -113,7 +120,8 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
     setType('');
     setYear('');
     setSearchTerm('');
-    setSelectedStudents([]);
+    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+    setStudentAttendance({});
     onClose();
   };
 
@@ -139,7 +147,15 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+              required
+            />
+
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -197,20 +213,6 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
                 <p className="text-sm text-gray-500">
                   {filteredStudents.length} students found
                 </p>
-                <div className="space-x-2">
-                  <button
-                    onClick={handleSelectAll}
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    onClick={handleDeselectAll}
-                    className="text-sm text-red-600 hover:text-red-800"
-                  >
-                    Deselect All
-                  </button>
-                </div>
               </div>
 
               <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg mb-6">
@@ -223,43 +225,25 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <input
-                            type="checkbox"
-                            checked={selectedStudents.length === filteredStudents.length}
-                            onChange={handleSelectAll}
-                            className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                          />
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Registration No.
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Type
+                          Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Year
+                          Time Slot
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Remarks
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredStudents.map(student => (
-                        <tr
-                          key={student.id}
-                          onClick={() => toggleStudent(student.id)}
-                          className="hover:bg-gray-50 cursor-pointer"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              checked={selectedStudents.includes(student.id)}
-                              onChange={() => toggleStudent(student.id)}
-                              onClick={e => e.stopPropagation()}
-                              className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                            />
-                          </td>
+                        <tr key={student.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {student.name}
@@ -271,14 +255,39 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {student.type}
-                            </div>
+                            <select
+                              value={studentAttendance[student.id]?.status || ''}
+                              onChange={(e) => handleAttendanceChange(student.id, 'status', e.target.value)}
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                            >
+                              <option value="">Select Status</option>
+                              <option value="Present">Present</option>
+                              <option value="Absent">Absent</option>
+                              <option value="Late">Late</option>
+                              <option value="Excused">Excused</option>
+                            </select>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {student.year}
-                            </div>
+                            {student.type === 'Part Time' && (
+                              <select
+                                value={studentAttendance[student.id]?.timeSlot || ''}
+                                onChange={(e) => handleAttendanceChange(student.id, 'timeSlot', e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value="">Select Time Slot</option>
+                                <option value="Morning">Morning</option>
+                                <option value="Evening">Evening</option>
+                              </select>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="text"
+                              value={studentAttendance[student.id]?.remarks || ''}
+                              onChange={(e) => handleAttendanceChange(student.id, 'remarks', e.target.value)}
+                              placeholder="Add remarks..."
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                            />
                           </td>
                         </tr>
                       ))}
@@ -296,10 +305,10 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={selectedStudents.length === 0}
+                  disabled={!selectedDate || Object.keys(studentAttendance).length === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Mark Attendance
+                  Save Attendance
                 </button>
               </div>
             </>
