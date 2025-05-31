@@ -22,7 +22,6 @@ const mockUsers = {
     id: 'ADMIN001',
     adminId: 'ADM001',
     name: 'Admin User',
-    email: 'admin@mlvisiotrack.com',
     password: 'admin123',
     role: 'admin',
     department: 'Administration',
@@ -33,7 +32,6 @@ const mockUsers = {
     id: 'ADMIN002',
     adminId: 'ADM002',
     name: 'Second Admin',
-    email: 'admin2@mlvisiotrack.com',
     password: 'admin456',
     role: 'admin',
     department: 'Administration',
@@ -43,7 +41,7 @@ const mockUsers = {
   user: {
     id: 'STD001',
     name: 'Regular User',
-    email: 'user@mlvisiotrack.com',
+    registrationNumber: 'REG001',
     password: 'user123',
     role: 'user',
     department: 'Engineering',
@@ -91,7 +89,7 @@ const mockUserActivities = {
   ]
 };
 
-const mockLeaveRequests: LeaveRequest[] = [
+const mockLeaveRequests = [
   {
     id: '1',
     type: 'vacation',
@@ -112,18 +110,17 @@ const mockLeaveRequests: LeaveRequest[] = [
   }
 ];
 
-export const login = async (email: string, password: string, adminId?: string): Promise<ApiResponse<{ user: User; token: string }>> => {
+export const login = async (identifier: string, password: string, isAdmin: boolean): Promise<ApiResponse<{ user: User; token: string }>> => {
   const adminUsers = [mockUsers.admin, mockUsers.admin2];
   const regularUser = mockUsers.user;
 
   let authenticatedUser = null;
 
-  if (adminId) {
-    // Admin login
+  if (isAdmin) {
+    // Admin login using admin ID
     const adminUser = adminUsers.find(admin => 
-      admin.email === email && 
-      admin.password === password && 
-      admin.adminId === adminId
+      admin.adminId === identifier && 
+      admin.password === password
     );
     
     if (adminUser) {
@@ -131,8 +128,8 @@ export const login = async (email: string, password: string, adminId?: string): 
       delete authenticatedUser.password;
     }
   } else {
-    // Regular user login
-    if (email === regularUser.email && password === regularUser.password) {
+    // Regular user login using registration number
+    if (regularUser.registrationNumber === identifier && regularUser.password === password) {
       authenticatedUser = { ...regularUser };
       delete authenticatedUser.password;
     }
@@ -153,7 +150,7 @@ export const login = async (email: string, password: string, adminId?: string): 
   return {
     success: false,
     data: null,
-    message: adminId ? 'Invalid admin credentials' : 'Invalid email or password'
+    message: isAdmin ? 'Invalid admin credentials' : 'Invalid registration number or password'
   };
 };
 
@@ -163,7 +160,7 @@ export const logout = async (): Promise<void> => {
   localStorage.removeItem('role');
 };
 
-const mockDashboardStats: DashboardStats = {
+const mockDashboardStats = {
   present: 45,
   absent: 5,
   leave: 3,
@@ -195,7 +192,7 @@ export const getLeaveRequests = async (): Promise<ApiResponse<LeaveRequest[]>> =
 };
 
 export const submitLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id' | 'status' | 'createdAt'>): Promise<ApiResponse<LeaveRequest>> => {
-  const mockLeaveRequest: LeaveRequest = {
+  const mockLeaveRequest = {
     id: Math.random().toString(),
     ...leaveData,
     status: 'pending',
