@@ -139,6 +139,8 @@ const AdminProfile = () => {
           newPassword: '',
           confirmPassword: '',
         });
+      } else {
+        toast.error(response.message || 'Failed to change password');
       }
     } catch (err) {
       toast.error('Failed to change password');
