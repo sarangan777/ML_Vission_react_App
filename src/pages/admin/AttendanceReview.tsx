@@ -172,16 +172,8 @@ const AttendanceReview = () => {
         <BackButton />
       </div>
 
-      {/* Review Requests Section */}
-      <div className="mb-8">
-        <AttendanceReviewList
-          requests={reviewRequests}
-          onUpdateStatus={handleUpdateReviewStatus}
-        />
-      </div>
-
       {/* Attendance Records Section */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-lg shadow mb-8">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
@@ -319,6 +311,14 @@ const AttendanceReview = () => {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Review Requests Section */}
+      <div className="mt-8">
+        <AttendanceReviewList
+          requests={reviewRequests}
+          onUpdateStatus={handleUpdateReviewStatus}
+        />
       </div>
 
       <ManualAttendanceModal
