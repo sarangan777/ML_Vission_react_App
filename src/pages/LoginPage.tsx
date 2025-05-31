@@ -7,6 +7,7 @@ const LoginPage: React.FC = () => {
   const [isUserLogin, setIsUserLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [adminId, setAdminId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -19,10 +20,10 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
     
     try {
-      const response = await apiService.login(email, password);
+      const response = await apiService.login(email, password, !isUserLogin ? adminId : undefined);
       
       if (!response.success || !response.data) {
-        setError(response.message || 'Invalid email or password.');
+        setError(response.message || 'Invalid credentials.');
         return;
       }
       
@@ -41,6 +42,7 @@ const LoginPage: React.FC = () => {
     setIsUserLogin(!isUserLogin);
     setEmail('');
     setPassword('');
+    setAdminId('');
     setError('');
   };
 
@@ -96,13 +98,29 @@ const LoginPage: React.FC = () => {
               <div className="text-red-500 text-sm mb-4 text-center">{error}</div>
             )}
             
+            {!isUserLogin && (
+              <div className="relative mb-8">
+                <input 
+                  type="text" 
+                  value={adminId}
+                  onChange={(e) => setAdminId(e.target.value)}
+                  className="w-full py-3 px-5 pr-12 bg-gray-100 rounded-lg text-gray-800 outline-none"
+                  placeholder="Admin ID"
+                  required
+                />
+                <i className="absolute right-5 top-1/2 transform -translate-y-1/2 text-xl text-gray-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </i>
+              </div>
+            )}
+            
             <div className="relative mb-8">
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full py-3 px-5 pr-12 bg-gray-100 rounded-lg text-gray-800 outline-none"
-                placeholder={`${isUserLogin ? 'User' : 'Admin'} ID`}
+                placeholder="Email"
                 required
               />
               <i className="absolute right-5 top-1/2 transform -translate-y-1/2 text-xl text-gray-600">

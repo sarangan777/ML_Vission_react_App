@@ -2,7 +2,6 @@ import axios from 'axios';
 import { User, DashboardStats, ActivityItem, LeaveRequest, ApiResponse } from '../types';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Create axios instance
 const api = axios.create({
   baseURL: '/api',
   headers: {
@@ -10,7 +9,6 @@ const api = axios.create({
   },
 });
 
-// Add interceptor to add auth token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
   if (token) {
@@ -19,10 +17,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Mock user data for testing
 const mockUsers = {
   admin: {
-    id: '1',
+    id: 'ADMIN001',
+    adminId: 'ADM001',
     name: 'Admin User',
     email: 'admin@mlvisiotrack.com',
     password: 'admin123',
@@ -31,8 +29,19 @@ const mockUsers = {
     profilePicture: null,
     joinDate: '2024-01-01'
   },
+  admin2: {
+    id: 'ADMIN002',
+    adminId: 'ADM002',
+    name: 'Second Admin',
+    email: 'admin2@mlvisiotrack.com',
+    password: 'admin456',
+    role: 'admin',
+    department: 'Administration',
+    profilePicture: null,
+    joinDate: '2024-01-15'
+  },
   user: {
-    id: '2',
+    id: 'STD001',
     name: 'Regular User',
     email: 'user@mlvisiotrack.com',
     password: 'user123',
@@ -43,9 +52,8 @@ const mockUsers = {
   }
 };
 
-// Mock activities for different users
 const mockUserActivities = {
-  '1': [
+  'ADMIN001': [
     {
       id: '1',
       type: 'check-in',
@@ -59,7 +67,15 @@ const mockUserActivities = {
       details: 'Admin User approved a leave request'
     }
   ],
-  '2': [
+  'ADMIN002': [
+    {
+      id: '5',
+      type: 'check-in',
+      timestamp: new Date().toISOString(),
+      details: 'Second Admin checked in for the day'
+    }
+  ],
+  'STD001': [
     {
       id: '3',
       type: 'check-in',
@@ -75,7 +91,6 @@ const mockUserActivities = {
   ]
 };
 
-// Mock leave requests
 const mockLeaveRequests: LeaveRequest[] = [
   {
     id: '1',
@@ -97,20 +112,30 @@ const mockLeaveRequests: LeaveRequest[] = [
   }
 ];
 
-// Login
-export const login = async (email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> => {
-  // Mock authentication
-  const adminUser = mockUsers.admin;
+export const login = async (email: string, password: string, adminId?: string): Promise<ApiResponse<{ user: User; token: string }>> => {
+  const adminUsers = [mockUsers.admin, mockUsers.admin2];
   const regularUser = mockUsers.user;
 
   let authenticatedUser = null;
 
-  if (email === adminUser.email && password === adminUser.password) {
-    authenticatedUser = { ...adminUser };
-    delete authenticatedUser.password;
-  } else if (email === regularUser.email && password === regularUser.password) {
-    authenticatedUser = { ...regularUser };
-    delete authenticatedUser.password;
+  if (adminId) {
+    // Admin login
+    const adminUser = adminUsers.find(admin => 
+      admin.email === email && 
+      admin.password === password && 
+      admin.adminId === adminId
+    );
+    
+    if (adminUser) {
+      authenticatedUser = { ...adminUser };
+      delete authenticatedUser.password;
+    }
+  } else {
+    // Regular user login
+    if (email === regularUser.email && password === regularUser.password) {
+      authenticatedUser = { ...regularUser };
+      delete authenticatedUser.password;
+    }
   }
 
   if (authenticatedUser) {
@@ -128,18 +153,16 @@ export const login = async (email: string, password: string): Promise<ApiRespons
   return {
     success: false,
     data: null,
-    message: 'Invalid email or password'
+    message: adminId ? 'Invalid admin credentials' : 'Invalid email or password'
   };
 };
 
-// Logout
 export const logout = async (): Promise<void> => {
   localStorage.removeItem('authToken');
   localStorage.removeItem('user');
   localStorage.removeItem('role');
 };
 
-// Mock data for dashboard
 const mockDashboardStats: DashboardStats = {
   present: 45,
   absent: 5,
@@ -147,7 +170,6 @@ const mockDashboardStats: DashboardStats = {
   totalHours: 360
 };
 
-// Activity
 export const getRecentActivity = async (): Promise<ApiResponse<ActivityItem[]>> => {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const userActivities = mockUserActivities[currentUser.id as keyof typeof mockUserActivities] || [];
@@ -158,7 +180,6 @@ export const getRecentActivity = async (): Promise<ApiResponse<ActivityItem[]>> 
   };
 };
 
-// Dashboard
 export const getDashboardStats = async (): Promise<ApiResponse<DashboardStats>> => {
   return {
     success: true,
@@ -166,7 +187,6 @@ export const getDashboardStats = async (): Promise<ApiResponse<DashboardStats>> 
   };
 };
 
-// Leave Requests
 export const getLeaveRequests = async (): Promise<ApiResponse<LeaveRequest[]>> => {
   return {
     success: true,
@@ -190,7 +210,6 @@ export const submitLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id' | 's
   };
 };
 
-// Profile
 export const getUserProfile = async (): Promise<ApiResponse<User>> => {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   return {
@@ -244,7 +263,6 @@ export const changePassword = async (currentPassword: string, newPassword: strin
     };
   }
 
-  // In a real application, you would hash the password and update it in the database
   mockUsers[userType as keyof typeof mockUsers].password = newPassword;
 
   return {
