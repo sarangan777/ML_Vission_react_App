@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { Search, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'react-toastify';
 
 interface Student {
   id: string;
@@ -15,8 +16,8 @@ interface Student {
 interface StudentAttendance {
   id: string;
   status: 'Present' | 'Absent' | 'Late' | 'Excused';
+  arrivalTime?: string;
   remarks?: string;
-  timeSlot?: 'Morning' | 'Evening';
 }
 
 interface ManualAttendanceModalProps {
@@ -35,6 +36,7 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   const [year, setYear] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [defaultArrivalTime, setDefaultArrivalTime] = useState('09:00');
   const [studentAttendance, setStudentAttendance] = useState<Record<string, StudentAttendance>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -60,12 +62,15 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   ];
 
   useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setStudents(mockStudents);
-      setIsLoading(false);
-    }, 500);
-  }, []);
+    if (isOpen) {
+      setIsLoading(true);
+      // Simulate API call
+      setTimeout(() => {
+        setStudents(mockStudents);
+        setIsLoading(false);
+      }, 500);
+    }
+  }, [isOpen]);
 
   const filteredStudents = students.filter(student => {
     const matchesDepartment = !department || student.department === department;
@@ -84,14 +89,32 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
       [studentId]: {
         ...prev[studentId],
         id: studentId,
-        [field]: value
+        [field]: value,
+        arrivalTime: field === 'status' ? defaultArrivalTime : prev[studentId]?.arrivalTime || defaultArrivalTime
       }
     }));
   };
 
+  const handleApplyToAll = (status: StudentAttendance['status']) => {
+    const newAttendance: Record<string, StudentAttendance> = {};
+    filteredStudents.forEach(student => {
+      newAttendance[student.id] = {
+        id: student.id,
+        status,
+        arrivalTime: defaultArrivalTime
+      };
+    });
+    setStudentAttendance(newAttendance);
+  };
+
   const handleSubmit = () => {
     if (!selectedDate) {
-      alert('Please select a date');
+      toast.error('Please select a date');
+      return;
+    }
+
+    if (Object.keys(studentAttendance).length === 0) {
+      toast.error('Please mark attendance for at least one student');
       return;
     }
 
@@ -100,13 +123,11 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
       students: Object.values(studentAttendance).map(attendance => {
         const student = students.find(s => s.id === attendance.id);
         return {
-          id: attendance.id,
           name: student?.name,
-          registrationNumber: student?.registrationNumber,
-          department: student?.department,
+          regNo: student?.registrationNumber,
           status: attendance.status,
-          remarks: attendance.remarks,
-          timeSlot: attendance.timeSlot
+          arrivalTime: attendance.arrivalTime,
+          remarks: attendance.remarks || ''
         };
       })
     };
@@ -121,6 +142,7 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
     setYear('');
     setSearchTerm('');
     setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+    setDefaultArrivalTime('09:00');
     setStudentAttendance({});
     onClose();
   };
@@ -147,15 +169,41 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg"
-              required
-            />
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="md:col-span-2">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg"
+                required
+              />
+            </div>
+            <div className="md:col-span-2">
+              <input
+                type="time"
+                value={defaultArrivalTime}
+                onChange={(e) => setDefaultArrivalTime(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg"
+                placeholder="Default arrival time"
+              />
+            </div>
+            <div className="md:col-span-1">
+              <select
+                onChange={(e) => handleApplyToAll(e.target.value as StudentAttendance['status'])}
+                className="w-full p-2 border border-gray-300 rounded-lg"
+                value=""
+              >
+                <option value="">Apply to All</option>
+                <option value="Present">Present</option>
+                <option value="Absent">Absent</option>
+                <option value="Late">Late</option>
+                <option value="Excused">Excused</option>
+              </select>
+            </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -216,84 +264,73 @@ const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
               </div>
 
               <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg mb-6">
-                {filteredStudents.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    No students found matching the criteria
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Registration No.
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Time Slot
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Remarks
-                        </th>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Registration No.
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Arrival Time
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Remarks
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredStudents.map(student => (
+                      <tr key={student.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.name}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {student.registrationNumber}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={studentAttendance[student.id]?.status || ''}
+                            onChange={(e) => handleAttendanceChange(student.id, 'status', e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                          >
+                            <option value="">Select Status</option>
+                            <option value="Present">Present</option>
+                            <option value="Absent">Absent</option>
+                            <option value="Late">Late</option>
+                            <option value="Excused">Excused</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="time"
+                            value={studentAttendance[student.id]?.arrivalTime || defaultArrivalTime}
+                            onChange={(e) => handleAttendanceChange(student.id, 'arrivalTime', e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="text"
+                            value={studentAttendance[student.id]?.remarks || ''}
+                            onChange={(e) => handleAttendanceChange(student.id, 'remarks', e.target.value)}
+                            placeholder="Add remarks..."
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredStudents.map(student => (
-                        <tr key={student.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {student.name}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
-                              {student.registrationNumber}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <select
-                              value={studentAttendance[student.id]?.status || ''}
-                              onChange={(e) => handleAttendanceChange(student.id, 'status', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            >
-                              <option value="">Select Status</option>
-                              <option value="Present">Present</option>
-                              <option value="Absent">Absent</option>
-                              <option value="Late">Late</option>
-                              <option value="Excused">Excused</option>
-                            </select>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {student.type === 'Part Time' && (
-                              <select
-                                value={studentAttendance[student.id]?.timeSlot || ''}
-                                onChange={(e) => handleAttendanceChange(student.id, 'timeSlot', e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              >
-                                <option value="">Select Time Slot</option>
-                                <option value="Morning">Morning</option>
-                                <option value="Evening">Evening</option>
-                              </select>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <input
-                              type="text"
-                              value={studentAttendance[student.id]?.remarks || ''}
-                              onChange={(e) => handleAttendanceChange(student.id, 'remarks', e.target.value)}
-                              placeholder="Add remarks..."
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div className="flex justify-end space-x-3">
