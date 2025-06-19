@@ -14,8 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,15 +36,10 @@ public class AttendanceServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
         
         try {
-            switch (pathInfo) {
-                case "/record":
-                    handleRecordAttendance(request, response);
-                    break;
-                case "/bulk-record":
-                    handleBulkRecordAttendance(request, response);
-                    break;
-                default:
-                    JsonResponse.sendError(response, 404, "Endpoint not found");
+            if ("/logAttendance".equals(pathInfo)) {
+                handleLogAttendance(request, response);
+            } else {
+                JsonResponse.sendError(response, 404, "Endpoint not found");
             }
         } catch (Exception e) {
             logger.error("Error in AttendanceServlet POST", e);
@@ -61,11 +54,13 @@ public class AttendanceServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
         
         try {
-            if (pathInfo.startsWith("/student/")) {
+            if ("/getAttendance".equals(pathInfo)) {
+                handleGetAttendance(request, response);
+            } else if (pathInfo != null && pathInfo.startsWith("/student/")) {
                 handleGetStudentAttendance(request, response);
-            } else if (pathInfo.startsWith("/date/")) {
+            } else if (pathInfo != null && pathInfo.startsWith("/date/")) {
                 handleGetAttendanceByDate(request, response);
-            } else if (pathInfo.startsWith("/stats/")) {
+            } else if (pathInfo != null && pathInfo.startsWith("/stats/")) {
                 handleGetAttendanceStats(request, response);
             } else {
                 JsonResponse.sendError(response, 404, "Endpoint not found");
@@ -77,111 +72,56 @@ public class AttendanceServlet extends HttpServlet {
     }
     
     @Override
-    protected void doPut(HttpServletRequest request, HttpServletResponse response) 
+    protected void doDelete(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
         String pathInfo = request.getPathInfo();
         
         try {
-            if (pathInfo.startsWith("/")) {
-                handleUpdateAttendanceStatus(request, response);
+            if (pathInfo != null && pathInfo.startsWith("/")) {
+                handleDeleteAttendance(request, response);
             } else {
                 JsonResponse.sendError(response, 404, "Endpoint not found");
             }
         } catch (Exception e) {
-            logger.error("Error in AttendanceServlet PUT", e);
+            logger.error("Error in AttendanceServlet DELETE", e);
             JsonResponse.sendError(response, 500, "Internal server error");
         }
     }
     
-    private void handleRecordAttendance(HttpServletRequest request, HttpServletResponse response) 
+    // ESP32 endpoint for logging attendance
+    private void handleLogAttendance(HttpServletRequest request, HttpServletResponse response) 
             throws Exception {
         
         Map<String, Object> requestData = objectMapper.readValue(request.getReader(), Map.class);
         
-        // Validate required fields
-        String studentId = (String) requestData.get("studentId");
-        String dateStr = (String) requestData.get("date");
-        String statusStr = (String) requestData.get("status");
+        String studentId = (String) requestData.get("student_id");
+        String deviceId = (String) requestData.get("device_id");
         
-        if (studentId == null || dateStr == null || statusStr == null) {
-            JsonResponse.sendError(response, 400, "Student ID, date, and status are required");
+        if (studentId == null || deviceId == null) {
+            JsonResponse.sendError(response, 400, "student_id and device_id are required");
             return;
         }
         
-        // Create attendance record
-        AttendanceRecord record = new AttendanceRecord();
-        record.setStudentId(studentId);
-        record.setStudentName((String) requestData.get("studentName"));
-        record.setRegistrationNumber((String) requestData.get("registrationNumber"));
-        record.setCourseId((String) requestData.get("courseId"));
-        record.setCourseName((String) requestData.get("courseName"));
-        record.setScheduleId((String) requestData.get("scheduleId"));
-        record.setDate(LocalDate.parse(dateStr));
+        AttendanceRecord record = attendanceDAO.logAttendance(studentId, deviceId);
         
-        String arrivalTimeStr = (String) requestData.get("arrivalTime");
-        if (arrivalTimeStr != null) {
-            record.setArrivalTime(LocalTime.parse(arrivalTimeStr));
-        }
-        
-        record.setStatus(AttendanceRecord.AttendanceStatus.fromString(statusStr));
-        record.setMethod((String) requestData.getOrDefault("method", "manual"));
-        record.setRemarks((String) requestData.get("remarks"));
-        record.setRecordedBy((String) request.getAttribute("userId"));
-        
-        AttendanceRecord createdRecord = attendanceDAO.create(record);
-        
-        JsonResponse.sendSuccess(response, createdRecord, "Attendance recorded successfully", 201);
+        JsonResponse.sendSuccess(response, record, "Attendance logged successfully", 201);
     }
     
-    private void handleBulkRecordAttendance(HttpServletRequest request, HttpServletResponse response) 
+    // Frontend endpoint for getting all attendance
+    private void handleGetAttendance(HttpServletRequest request, HttpServletResponse response) 
             throws Exception {
         
-        // Check if user is admin
-        String userRole = (String) request.getAttribute("userRole");
-        if (!"admin".equals(userRole)) {
-            JsonResponse.sendError(response, 403, "Access denied. Admin privileges required.");
-            return;
-        }
+        String startDateStr = request.getParameter("startDate");
+        String endDateStr = request.getParameter("endDate");
+        String department = request.getParameter("department");
         
-        Map<String, Object> requestData = objectMapper.readValue(request.getReader(), Map.class);
-        List<Map<String, Object>> attendanceRecords = (List<Map<String, Object>>) requestData.get("attendanceRecords");
+        LocalDate startDate = startDateStr != null ? LocalDate.parse(startDateStr) : null;
+        LocalDate endDate = endDateStr != null ? LocalDate.parse(endDateStr) : null;
         
-        if (attendanceRecords == null || attendanceRecords.isEmpty()) {
-            JsonResponse.sendError(response, 400, "Attendance records are required");
-            return;
-        }
+        List<AttendanceRecord> records = attendanceDAO.getAllAttendance(startDate, endDate, department);
         
-        List<AttendanceRecord> records = new ArrayList<>();
-        String recordedBy = (String) request.getAttribute("userId");
-        
-        for (Map<String, Object> recordData : attendanceRecords) {
-            AttendanceRecord record = new AttendanceRecord();
-            record.setStudentId((String) recordData.get("studentId"));
-            record.setStudentName((String) recordData.get("studentName"));
-            record.setRegistrationNumber((String) recordData.get("registrationNumber"));
-            record.setCourseId((String) recordData.get("courseId"));
-            record.setCourseName((String) recordData.get("courseName"));
-            record.setScheduleId((String) recordData.get("scheduleId"));
-            record.setDate(LocalDate.parse((String) recordData.get("date")));
-            
-            String arrivalTimeStr = (String) recordData.get("arrivalTime");
-            if (arrivalTimeStr != null) {
-                record.setArrivalTime(LocalTime.parse(arrivalTimeStr));
-            }
-            
-            record.setStatus(AttendanceRecord.AttendanceStatus.fromString((String) recordData.get("status")));
-            record.setMethod("bulk_manual");
-            record.setRemarks((String) recordData.get("remarks"));
-            record.setRecordedBy(recordedBy);
-            
-            records.add(record);
-        }
-        
-        List<AttendanceRecord> createdRecords = attendanceDAO.bulkCreate(records);
-        
-        JsonResponse.sendSuccess(response, createdRecords, 
-            createdRecords.size() + " attendance records created successfully", 201);
+        JsonResponse.sendSuccess(response, records);
     }
     
     private void handleGetStudentAttendance(HttpServletRequest request, HttpServletResponse response) 
@@ -205,7 +145,7 @@ public class AttendanceServlet extends HttpServlet {
         LocalDate startDate = startDateStr != null ? LocalDate.parse(startDateStr) : null;
         LocalDate endDate = endDateStr != null ? LocalDate.parse(endDateStr) : null;
         
-        List<AttendanceRecord> records = attendanceDAO.findByStudent(studentId, startDate, endDate);
+        List<AttendanceRecord> records = attendanceDAO.getAttendanceByStudent(studentId, startDate, endDate);
         
         JsonResponse.sendSuccess(response, records);
     }
@@ -225,9 +165,8 @@ public class AttendanceServlet extends HttpServlet {
         LocalDate date = LocalDate.parse(dateStr);
         
         String department = request.getParameter("department");
-        String courseId = request.getParameter("course");
         
-        List<AttendanceRecord> records = attendanceDAO.findByDate(date, department, courseId);
+        List<AttendanceRecord> records = attendanceDAO.getAttendanceByDate(date, department);
         
         JsonResponse.sendSuccess(response, records);
     }
@@ -258,10 +197,10 @@ public class AttendanceServlet extends HttpServlet {
         JsonResponse.sendSuccess(response, stats);
     }
     
-    private void handleUpdateAttendanceStatus(HttpServletRequest request, HttpServletResponse response) 
+    private void handleDeleteAttendance(HttpServletRequest request, HttpServletResponse response) 
             throws Exception {
         
-        // Only admins can update attendance
+        // Only admins can delete attendance
         String userRole = (String) request.getAttribute("userRole");
         if (!"admin".equals(userRole)) {
             JsonResponse.sendError(response, 403, "Access denied. Admin privileges required.");
@@ -269,26 +208,19 @@ public class AttendanceServlet extends HttpServlet {
         }
         
         String pathInfo = request.getPathInfo();
-        String attendanceId = pathInfo.substring(1); // Remove leading slash
+        String attendanceIdStr = pathInfo.substring(1); // Remove leading slash
         
-        Map<String, Object> requestData = objectMapper.readValue(request.getReader(), Map.class);
-        
-        String statusStr = (String) requestData.get("status");
-        String remarks = (String) requestData.get("remarks");
-        
-        if (statusStr == null) {
-            JsonResponse.sendError(response, 400, "Status is required");
-            return;
-        }
-        
-        AttendanceRecord.AttendanceStatus status = AttendanceRecord.AttendanceStatus.fromString(statusStr);
-        
-        boolean success = attendanceDAO.updateStatus(attendanceId, status, remarks);
-        
-        if (success) {
-            JsonResponse.sendSuccess(response, null, "Attendance status updated successfully");
-        } else {
-            JsonResponse.sendError(response, 500, "Failed to update attendance status");
+        try {
+            Long attendanceId = Long.parseLong(attendanceIdStr);
+            boolean success = attendanceDAO.deleteAttendance(attendanceId);
+            
+            if (success) {
+                JsonResponse.sendSuccess(response, null, "Attendance record deleted successfully");
+            } else {
+                JsonResponse.sendError(response, 404, "Attendance record not found");
+            }
+        } catch (NumberFormatException e) {
+            JsonResponse.sendError(response, 400, "Invalid attendance ID");
         }
     }
 }

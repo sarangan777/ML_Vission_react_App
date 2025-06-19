@@ -4,7 +4,6 @@ import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import BackButton from '../components/BackButton';
-import { requestNotificationPermission, onMessageListener } from '../services/notification';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 
@@ -25,34 +24,7 @@ const Schedule: React.FC = () => {
   const scheduleRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  useEffect(() => {
-    const setupNotifications = async () => {
-      const token = await requestNotificationPermission();
-      if (token) {
-        // Store the token in your backend associated with the user
-        // This is where you'd make an API call to save the token
-        console.log('Notification permission granted');
-      }
-    };
-
-    setupNotifications();
-
-    // Listen for incoming messages
-    const unsubscribe = onMessageListener().then((payload: any) => {
-      toast.info(payload.notification.title, {
-        description: payload.notification.body
-      });
-    });
-
-    return () => {
-      // Cleanup
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, []);
-
-  // Mock data - replace with actual API calls
+  // Mock data - replace with actual API calls to MySQL backend
   const mockSchedule: ClassSchedule[] = [
     {
       id: '1',
@@ -113,8 +85,10 @@ const Schedule: React.FC = () => {
 
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
       pdf.save('schedule.pdf');
+      toast.success('Schedule exported successfully');
     } catch (error) {
       console.error('Error generating PDF:', error);
+      toast.error('Failed to export schedule');
     }
   };
 

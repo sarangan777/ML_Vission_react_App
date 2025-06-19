@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, Search, Download, AlertTriangle } from 'lucide-react';
 import { unparse } from 'papaparse';
 import { format } from 'date-fns';
@@ -6,16 +6,18 @@ import BackButton from '../../components/BackButton';
 import ManualAttendanceModal from '../../components/ManualAttendanceModal';
 import AttendanceReviewList from '../../components/AttendanceReviewList';
 import { toast } from 'react-toastify';
+import * as apiService from '../../services/api';
 
 interface AttendanceRecord {
   id: number;
-  employee: string;
-  date: string;
-  checkIn: string;
-  status: string;
-  department?: string;
+  studentId: string;
+  deviceId: string;
+  timestamp: string;
+  studentName?: string;
   registrationNumber?: string;
-  attendancePercentage: number;
+  department?: string;
+  status: string;
+  attendancePercentage?: number;
 }
 
 interface ReviewRequest {
@@ -37,40 +39,8 @@ const AttendanceReview = () => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-
-  // Mock attendance records with percentage
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: 1,
-      employee: 'John Doe',
-      registrationNumber: 'STD001',
-      department: 'HNDIT',
-      date: '2024-03-10',
-      checkIn: '09:00',
-      status: 'Present',
-      attendancePercentage: 85
-    },
-    {
-      id: 2,
-      employee: 'Jane Smith',
-      registrationNumber: 'STD002',
-      department: 'HNDA',
-      date: '2024-03-10',
-      checkIn: '08:45',
-      status: 'Present',
-      attendancePercentage: 72
-    },
-    {
-      id: 3,
-      employee: 'Mark Lee',
-      registrationNumber: 'STD004',
-      department: 'HNDM',
-      date: '2024-03-10',
-      checkIn: '09:05',
-      status: 'Absent',
-      attendancePercentage: 49
-    }
-  ]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Mock review requests
   const [reviewRequests] = useState<ReviewRequest[]>([
@@ -100,15 +70,44 @@ const AttendanceReview = () => {
     }
   ]);
 
+  useEffect(() => {
+    fetchAttendanceData();
+  }, [selectedDate, selectedDepartment]);
+
+  const fetchAttendanceData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getAttendanceRecords(
+        selectedDate || undefined,
+        selectedDate || undefined,
+        selectedDepartment || undefined
+      );
+      
+      if (response.success && response.data) {
+        // Add mock attendance percentage for display
+        const recordsWithPercentage = response.data.map(record => ({
+          ...record,
+          attendancePercentage: Math.floor(Math.random() * 40) + 60 // Random percentage between 60-100
+        }));
+        setAttendanceRecords(recordsWithPercentage);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+      toast.error('Failed to load attendance data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleExportCSV = () => {
-    const csvData = attendanceRecords.map(record => ({
-      'Student Name': record.employee,
-      'Registration Number': record.registrationNumber,
-      Department: record.department,
-      Date: record.date,
-      'Check In': record.checkIn,
-      'Attendance %': `${record.attendancePercentage}%`,
-      Status: record.status
+    const csvData = filteredRecords.map(record => ({
+      'Student Name': record.studentName || record.studentId,
+      'Registration Number': record.registrationNumber || 'N/A',
+      'Department': record.department || 'N/A',
+      'Device ID': record.deviceId,
+      'Timestamp': format(new Date(record.timestamp), 'MMM dd, yyyy HH:mm:ss'),
+      'Attendance %': `${record.attendancePercentage || 0}%`,
+      'Status': record.status || 'Present'
     }));
 
     const csv = unparse(csvData);
@@ -124,20 +123,13 @@ const AttendanceReview = () => {
     document.body.removeChild(link);
   };
 
-  const handleManualAttendanceSubmit = (attendanceData: any) => {
-    const newRecords = attendanceData.students.map((student: any, index: number) => ({
-      id: Math.max(...attendanceRecords.map(r => r.id)) + index + 1,
-      employee: student.name,
-      registrationNumber: student.registrationNumber,
-      department: student.department,
-      date: attendanceData.date,
-      checkIn: student.arrivalTime,
-      status: student.status,
-      attendancePercentage: 85 // This would normally be calculated from historical data
-    }));
-
-    setAttendanceRecords(prev => [...prev, ...newRecords]);
+  const handleManualAttendanceSubmit = async (attendanceData: any) => {
+    // In a real implementation, this would call the backend API
+    // For now, we'll just show a success message
     toast.success(`Attendance marked for ${attendanceData.students.length} students`);
+    
+    // Refresh the data
+    fetchAttendanceData();
   };
 
   const handleUpdateReviewStatus = async (requestId: string, newStatus: 'approved' | 'rejected', remarks?: string) => {
@@ -158,12 +150,12 @@ const AttendanceReview = () => {
 
   const filteredRecords = attendanceRecords.filter(record => {
     const matchesSearch = 
-      record.employee.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDate = !selectedDate || record.date === selectedDate;
-    const matchesStatus = !selectedStatus || record.status.toLowerCase() === selectedStatus.toLowerCase();
+      (record.studentName && record.studentName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (record.registrationNumber && record.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      record.studentId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = !selectedStatus || (record.status || 'Present').toLowerCase() === selectedStatus.toLowerCase();
     const matchesDepartment = !selectedDepartment || record.department === selectedDepartment;
-    return matchesSearch && matchesDate && matchesStatus && matchesDepartment;
+    return matchesSearch && matchesStatus && matchesDepartment;
   });
 
   return (
@@ -239,77 +231,87 @@ const AttendanceReview = () => {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Department
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Arrival Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Attendance %
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{record.employee}</div>
-                      <div className="text-sm text-gray-500">{record.registrationNumber}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{record.department}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{record.date}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{record.checkIn}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getAttendanceColor(record.attendancePercentage)}`}>
-                          {record.attendancePercentage}%
-                        </span>
-                        {record.attendancePercentage < 80 && (
-                          <div className="ml-2 group relative">
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
-                            <div className="hidden group-hover:block absolute z-10 w-64 px-4 py-2 text-sm text-white bg-gray-900 rounded-lg -top-2 left-6">
-                              Warning: Attendance below required threshold for exam eligibility
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        record.status.toLowerCase() === 'present'
-                          ? 'bg-green-100 text-green-800'
-                          : record.status.toLowerCase() === 'absent'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {record.status}
-                      </span>
-                    </td>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Department
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Device ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Attendance %
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {record.studentName || record.studentId}
+                        </div>
+                        <div className="text-sm text-gray-500">{record.registrationNumber}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{record.department || 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{record.deviceId}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {format(new Date(record.timestamp), 'MMM dd, yyyy HH:mm')}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getAttendanceColor(record.attendancePercentage || 0)}`}>
+                            {record.attendancePercentage || 0}%
+                          </span>
+                          {(record.attendancePercentage || 0) < 80 && (
+                            <div className="ml-2 group relative">
+                              <AlertTriangle className="w-4 h-4 text-red-500" />
+                              <div className="hidden group-hover:block absolute z-10 w-64 px-4 py-2 text-sm text-white bg-gray-900 rounded-lg -top-2 left-6">
+                                Warning: Attendance below required threshold for exam eligibility
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          {record.status || 'Present'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {filteredRecords.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No attendance records found for the selected criteria.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

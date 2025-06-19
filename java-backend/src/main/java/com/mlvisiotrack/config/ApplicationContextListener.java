@@ -14,7 +14,7 @@ public class ApplicationContextListener implements ServletContextListener {
     
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        logger.info("🚀 Initializing MLVisioTrack Backend...");
+        logger.info("🚀 Initializing MLVisioTrack Backend (MySQL Only)...");
         
         try {
             // Load application properties
@@ -22,9 +22,6 @@ public class ApplicationContextListener implements ServletContextListener {
             
             // Initialize database
             DatabaseConfig.initialize(properties);
-            
-            // Initialize Firebase
-            FirebaseConfig.initialize(properties);
             
             // Store properties in servlet context
             sce.getServletContext().setAttribute("appProperties", properties);

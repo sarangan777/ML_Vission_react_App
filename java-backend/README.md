@@ -1,17 +1,15 @@
-# MLVisioTrack Java Backend
+# MLVisioTrack Java Backend (MySQL Only)
 
-A hybrid backend system using Java Servlets with Tomcat 10, Firebase Firestore for attendance data, and MySQL for other application features.
+A complete Java servlet-based backend system for attendance management using MySQL database only.
 
 ## 🏗️ Architecture Overview
 
 ### Data Storage Strategy
-- **Firestore**: Real-time attendance data from ESP32-CAM devices
-- **MySQL**: User profiles, courses, schedules, leave requests, and structured data
+- **MySQL**: All data including attendance records, user profiles, courses, schedules, and leave requests
 
 ### Technology Stack
 - **Java 11+**
 - **Jakarta Servlet API 6.0** (Tomcat 10)
-- **Firebase Admin SDK** for Firestore
 - **MySQL** with HikariCP connection pooling
 - **JWT** for authentication
 - **Jackson** for JSON processing
@@ -23,7 +21,6 @@ A hybrid backend system using Java Servlets with Tomcat 10, Firebase Firestore f
 - Apache Tomcat 10
 - MySQL (via XAMPP or standalone)
 - Maven 3.6+
-- Firebase project with Firestore enabled
 
 ## 🚀 Setup Instructions
 
@@ -35,23 +32,27 @@ A hybrid backend system using Java Servlets with Tomcat 10, Firebase Firestore f
 CREATE DATABASE mlvisiotrack;
 ```
 
-3. Import the schema from the migration file:
+3. Create the attendance table:
+```sql
+USE mlvisiotrack;
+
+CREATE TABLE attendance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id VARCHAR(50) NOT NULL,
+  device_id VARCHAR(50) NOT NULL,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_student_id (student_id),
+  INDEX idx_device_id (device_id),
+  INDEX idx_timestamp (timestamp)
+);
+```
+
+4. Import the existing schema from the migration file for other tables:
 ```bash
 mysql -u root -p mlvisiotrack < ../supabase/migrations/20250618084033_long_hill.sql
 ```
 
-### 2. Firebase Setup
-
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project or use existing
-3. Enable Firestore Database
-4. Generate a service account key:
-   - Go to Project Settings > Service Accounts
-   - Generate new private key
-   - Download the JSON file
-   - Place it in a secure location (e.g., `/path/to/firebase-service-account.json`)
-
-### 3. Configuration
+### 2. Configuration
 
 1. Update `src/main/resources/application.properties`:
 ```properties
@@ -62,10 +63,6 @@ db.name=mlvisiotrack
 db.username=root
 db.password=your_mysql_password
 
-# Firebase Configuration
-firebase.project.id=your-firebase-project-id
-firebase.credentials.path=/path/to/firebase-service-account.json
-
 # JWT Configuration
 jwt.secret=your-super-secret-jwt-key-here
 jwt.expiration=604800000
@@ -74,10 +71,11 @@ jwt.expiration=604800000
 cors.allowed.origins=http://localhost:3000,http://localhost:5173
 ```
 
-### 4. Build and Deploy
+### 3. Build and Deploy
 
 1. Build the project:
 ```bash
+cd java-backend
 mvn clean package
 ```
 
@@ -88,7 +86,7 @@ mvn clean package
 3. Start Tomcat server
 
 4. Verify deployment:
-   - Visit: `http://localhost:8080/mlvisiotrack-backend/health`
+   - Visit: `http://localhost:8080/mlvisiotrack-backend/api/auth/login`
 
 ## 📡 API Endpoints
 
@@ -97,23 +95,24 @@ mvn clean package
 http://localhost:8080/mlvisiotrack-backend/api
 ```
 
+### ESP32 Endpoints
+- `POST /attendance/logAttendance` - Log attendance from ESP32 devices
+
+### Frontend Endpoints
+- `GET /attendance/getAttendance` - Get all attendance records
+- `GET /attendance/student/{studentId}` - Get student attendance
+- `GET /attendance/date/{date}` - Get attendance by date (Admin only)
+- `GET /attendance/stats/{studentId}` - Get attendance statistics
+- `DELETE /attendance/{attendanceId}` - Delete attendance record (Admin only)
+
 ### Authentication Endpoints
 - `POST /auth/login` - User/Admin login
 - `POST /auth/register` - Create new user (Admin only)
 - `GET /auth/profile` - Get current user profile
 - `PUT /auth/profile` - Update user profile
 - `PUT /auth/change-password` - Change password
-- `POST /auth/logout` - Logout
 
-### Attendance Endpoints (Firestore)
-- `POST /attendance/record` - Record attendance
-- `POST /attendance/bulk-record` - Bulk record attendance (Admin only)
-- `GET /attendance/student/{studentId}` - Get student attendance
-- `GET /attendance/date/{date}` - Get attendance by date (Admin only)
-- `GET /attendance/stats/{studentId}` - Get attendance statistics
-- `PUT /attendance/{attendanceId}` - Update attendance status (Admin only)
-
-### User Management Endpoints (MySQL)
+### User Management Endpoints
 - `GET /users` - Get all users with filters (Admin only)
 - `DELETE /users/{userId}` - Delete user (Admin only)
 
@@ -131,16 +130,51 @@ The system uses JWT (JSON Web Tokens) for authentication:
 - **Password**: `admin123`
 - **Email**: `admin@mlvisiotrack.com`
 
+## 🔄 ESP32 Integration
+
+### ESP32 Code Example
+```cpp
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+const char* serverURL = "http://your-server:8080/mlvisiotrack-backend/api/attendance/logAttendance";
+
+void logAttendance(String studentId, String deviceId) {
+  HTTPClient http;
+  http.begin(serverURL);
+  http.addHeader("Content-Type", "application/json");
+  
+  StaticJsonDocument<200> doc;
+  doc["student_id"] = studentId;
+  doc["device_id"] = deviceId;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpResponseCode = http.POST(jsonString);
+  
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.println("Attendance logged: " + response);
+  } else {
+    Serial.println("Error logging attendance");
+  }
+  
+  http.end();
+}
+```
+
 ## 🔄 Data Flow
 
-### Attendance Data (Firestore)
+### Attendance Flow
 ```
-ESP32-CAM → Firebase Firestore → Java Backend → Frontend
+ESP32-CAM → MySQL Database → Java Servlet → Frontend
 ```
 
-### Other Data (MySQL)
+### User Management Flow
 ```
-Frontend → Java Backend → MySQL Database
+Frontend → Java Servlet → MySQL Database
 ```
 
 ## 🛡️ Security Features
@@ -154,7 +188,17 @@ Frontend → Java Backend → MySQL Database
 
 ## 📊 Database Schema
 
-### MySQL Tables
+### Attendance Table
+```sql
+CREATE TABLE attendance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id VARCHAR(50) NOT NULL,
+  device_id VARCHAR(50) NOT NULL,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Other Tables
 - `users` - Student and admin profiles
 - `courses` - Course information
 - `lecturers` - Lecturer details
@@ -162,11 +206,6 @@ Frontend → Java Backend → MySQL Database
 - `schedules` - Class schedules
 - `enrollments` - Student course enrollments
 - `leave_requests` - Leave applications
-- `attendance_reviews` - Attendance dispute requests
-- `system_settings` - Application settings
-
-### Firestore Collections
-- `attendance` - Real-time attendance records
 
 ## 🔧 Development
 
@@ -177,67 +216,33 @@ Frontend → Java Backend → MySQL Database
 mvn tomcat7:run
 ```
 
-2. Or deploy to local Tomcat instance and enable hot reload
+2. Or deploy to local Tomcat instance
 
 ### Testing
 
-1. Unit tests:
+Test the ESP32 endpoint:
 ```bash
-mvn test
+curl -X POST http://localhost:8080/mlvisiotrack-backend/api/attendance/logAttendance \
+  -H "Content-Type: application/json" \
+  -d '{"student_id": "STD001", "device_id": "ESP32_001"}'
 ```
-
-2. API testing with tools like Postman or curl
-
-### Logging
-
-The application uses SLF4J with Logback for logging. Logs are configured in `src/main/resources/logback.xml`.
 
 ## 🚀 Production Deployment
 
 1. **Build for production**:
 ```bash
-mvn clean package -Pprod
+mvn clean package
 ```
 
 2. **Update configuration**:
    - Set production database credentials
    - Update CORS origins for production domains
    - Use strong JWT secret
-   - Configure proper logging levels
 
 3. **Deploy to production Tomcat**:
    - Copy WAR file to production server
-   - Configure Tomcat with appropriate memory settings
-   - Set up SSL/TLS certificates
-   - Configure firewall rules
-
-4. **Monitor and maintain**:
-   - Set up log monitoring
-   - Configure database backups
-   - Monitor application performance
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Failed**:
-   - Check MySQL is running
-   - Verify credentials in `application.properties`
-   - Ensure database exists
-
-2. **Firebase Initialization Failed**:
-   - Verify service account JSON file path
-   - Check Firebase project ID
-   - Ensure Firestore is enabled
-
-3. **JWT Token Issues**:
-   - Check JWT secret configuration
-   - Verify token expiration settings
-   - Ensure proper Authorization header format
-
-4. **CORS Issues**:
-   - Update allowed origins in configuration
-   - Check preflight request handling
+   - Configure SSL/TLS certificates
+   - Set up proper firewall rules
 
 ## 📝 API Response Format
 
@@ -259,6 +264,29 @@ mvn clean package -Pprod
 }
 ```
 
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Failed**:
+   - Check MySQL is running
+   - Verify credentials in `application.properties`
+   - Ensure database and tables exist
+
+2. **JWT Token Issues**:
+   - Check JWT secret configuration
+   - Verify token expiration settings
+   - Ensure proper Authorization header format
+
+3. **CORS Issues**:
+   - Update allowed origins in configuration
+   - Check preflight request handling
+
+4. **ESP32 Connection Issues**:
+   - Verify server URL and port
+   - Check network connectivity
+   - Ensure JSON format is correct
+
 ## 🤝 Contributing
 
 1. Follow Java coding conventions
@@ -266,11 +294,3 @@ mvn clean package -Pprod
 3. Include input validation for all endpoints
 4. Write unit tests for new features
 5. Update documentation for API changes
-
-## 📞 Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review application logs
-3. Verify configuration settings
-4. Create an issue in the repository

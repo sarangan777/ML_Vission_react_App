@@ -37,15 +37,17 @@ const Dashboard: React.FC = () => {
     totalHours: 0,
   });
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [statsResponse, activityResponse] = await Promise.all([
+        const [statsResponse, activityResponse, attendanceResponse] = await Promise.all([
           apiService.getDashboardStats(),
           apiService.getRecentActivity(),
+          apiService.getAttendanceRecords(),
         ]);
 
         if (statsResponse.success && statsResponse.data) {
@@ -54,6 +56,10 @@ const Dashboard: React.FC = () => {
 
         if (activityResponse.success && activityResponse.data) {
           setActivities(activityResponse.data);
+        }
+
+        if (attendanceResponse.success && attendanceResponse.data) {
+          setAttendanceRecords(attendanceResponse.data);
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -66,18 +72,17 @@ const Dashboard: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  // Calculate attendance percentage
-  const attendancePercentage = Math.round(
-    (stats.present / (stats.present + stats.absent + stats.leave)) * 100
-  );
+  // Calculate attendance percentage from MySQL records
+  const attendancePercentage = attendanceRecords.length > 0 ? 
+    Math.round((attendanceRecords.length / (attendanceRecords.length + stats.absent)) * 100) : 0;
 
-  // Weekly attendance data
+  // Weekly attendance data based on MySQL records
   const chartData = {
     labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     datasets: [
       {
         label: 'Attendance',
-        data: [1, 1, 1, 0, 1, 1, 1], // 1 for present, 0 for absent
+        data: [1, 1, 1, 0, 1, 1, 1], // This would be calculated from actual MySQL data
         borderColor: '#7494ec',
         backgroundColor: 'rgba(116, 148, 236, 0.1)',
         tension: 0.4,
@@ -157,15 +162,19 @@ const Dashboard: React.FC = () => {
           textColor="text-white"
         />
         <StatCard
-          title="Next Class"
-          value="In 2 Hours"
+          title="Total Records"
+          value={attendanceRecords.length}
           icon={<Clock size={24} />}
           bgColor="bg-purple-500"
           textColor="text-white"
         />
         <StatCard
-          title="Next Holiday"
-          value="May 30"
+          title="This Month"
+          value={attendanceRecords.filter(record => {
+            const recordDate = new Date(record.timestamp);
+            const currentMonth = new Date().getMonth();
+            return recordDate.getMonth() === currentMonth;
+          }).length}
           icon={<Calendar size={24} />}
           bgColor="bg-orange-500"
           textColor="text-white"

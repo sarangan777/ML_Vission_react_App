@@ -11,14 +11,13 @@
     <packaging>war</packaging>
     
     <name>MLVisioTrack Backend</name>
-    <description>Hybrid backend using Firestore and MySQL</description>
+    <description>MySQL-only backend for attendance management</description>
     
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <tomcat.version>10.1.15</tomcat.version>
-        <firebase.version>9.2.0</firebase.version>
         <mysql.version>8.0.33</mysql.version>
         <jackson.version>2.15.2</jackson.version>
         <jwt.version>4.4.0</jwt.version>
@@ -31,13 +30,6 @@
             <artifactId>jakarta.servlet-api</artifactId>
             <version>6.0.0</version>
             <scope>provided</scope>
-        </dependency>
-        
-        <!-- Firebase Admin SDK -->
-        <dependency>
-            <groupId>com.google.firebase</groupId>
-            <artifactId>firebase-admin</artifactId>
-            <version>${firebase.version}</version>
         </dependency>
         
         <!-- MySQL Connector -->

@@ -5,7 +5,7 @@
          https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
     
-    <display-name>MLVisioTrack Backend</display-name>
+    <display-name>MLVisioTrack Backend (MySQL Only)</display-name>
     
     <!-- Context Parameters -->
     <context-param>
@@ -38,7 +38,10 @@
         <filter-name>AuthFilter</filter-name>
         <url-pattern>/api/auth/profile</url-pattern>
         <url-pattern>/api/auth/change-password</url-pattern>
-        <url-pattern>/api/attendance/*</url-pattern>
+        <url-pattern>/api/attendance/getAttendance</url-pattern>
+        <url-pattern>/api/attendance/student/*</url-pattern>
+        <url-pattern>/api/attendance/date/*</url-pattern>
+        <url-pattern>/api/attendance/stats/*</url-pattern>
         <url-pattern>/api/users/*</url-pattern>
         <url-pattern>/api/courses/*</url-pattern>
         <url-pattern>/api/schedules/*</url-pattern>

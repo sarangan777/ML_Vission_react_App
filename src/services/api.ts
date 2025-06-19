@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { User, DashboardStats, ActivityItem, LeaveRequest, ApiResponse } from '../types';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const api = axios.create({
   baseURL: '/api',
@@ -184,6 +183,89 @@ export const getDashboardStats = async (): Promise<ApiResponse<DashboardStats>> 
   };
 };
 
+// Updated attendance API calls to use MySQL backend
+export const getAttendanceRecords = async (startDate?: string, endDate?: string, department?: string): Promise<ApiResponse<any[]>> => {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (department) params.append('department', department);
+    
+    const response = await api.get(`/attendance/getAttendance?${params.toString()}`);
+    return {
+      success: true,
+      data: response.data.data || []
+    };
+  } catch (error) {
+    console.error('Error fetching attendance records:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Failed to fetch attendance records'
+    };
+  }
+};
+
+export const getStudentAttendance = async (studentId: string, startDate?: string, endDate?: string): Promise<ApiResponse<any[]>> => {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    const response = await api.get(`/attendance/student/${studentId}?${params.toString()}`);
+    return {
+      success: true,
+      data: response.data.data || []
+    };
+  } catch (error) {
+    console.error('Error fetching student attendance:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Failed to fetch student attendance'
+    };
+  }
+};
+
+export const getAttendanceStats = async (studentId: string, startDate?: string, endDate?: string): Promise<ApiResponse<any>> => {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    const response = await api.get(`/attendance/stats/${studentId}?${params.toString()}`);
+    return {
+      success: true,
+      data: response.data.data || {}
+    };
+  } catch (error) {
+    console.error('Error fetching attendance stats:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Failed to fetch attendance statistics'
+    };
+  }
+};
+
+export const deleteAttendanceRecord = async (attendanceId: number): Promise<ApiResponse<void>> => {
+  try {
+    await api.delete(`/attendance/${attendanceId}`);
+    return {
+      success: true,
+      data: null,
+      message: 'Attendance record deleted successfully'
+    };
+  } catch (error) {
+    console.error('Error deleting attendance record:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Failed to delete attendance record'
+    };
+  }
+};
+
 export const getLeaveRequests = async (): Promise<ApiResponse<LeaveRequest[]>> => {
   return {
     success: true,
@@ -226,26 +308,17 @@ export const updateUserProfile = async (profileData: Partial<User>): Promise<Api
 };
 
 export const uploadProfilePicture = async (file: File): Promise<ApiResponse<{ url: string }>> => {
-  try {
-    const storage = getStorage();
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
-    const storageRef = ref(storage, `profile-pictures/${userId}`);
-    
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
-    
-    return {
-      success: true,
-      data: { url: downloadURL }
+  // Mock implementation - in real app, this would upload to your server
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve({
+        success: true,
+        data: { url: reader.result as string }
+      });
     };
-  } catch (error) {
-    console.error('Error uploading profile picture:', error);
-    return {
-      success: false,
-      data: null,
-      message: 'Failed to upload profile picture'
-    };
-  }
+    reader.readAsDataURL(file);
+  });
 };
 
 export const changePassword = async (currentPassword: string, newPassword: string): Promise<ApiResponse<void>> => {
